@@ -13,9 +13,12 @@ var (
 )
 
 var (
-	verbose     = flag.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
-	logLevel    = flag.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
-	threadCount = flag.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
+	verbose         = flag.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
+	logLevel        = flag.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
+	threadCount     = flag.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
+	kubeconfig      = flag.String("kubeconfig", "", "Path to the kubeconfig file (global)")
+	namespace       = flag.String("namespace", "default", "Kubernetes namespace to use (global)")
+	explicitContext = flag.String("context", "", "Kubernetes context to use (global)")
 )
 
 func main() {
