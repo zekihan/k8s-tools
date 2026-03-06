@@ -1,6 +1,6 @@
 module github.com/zekihan/k8s-tools
 
-go 1.26.0
+go 1.26.1
 
 require (
 	k8s.io/apimachinery v0.35.2
