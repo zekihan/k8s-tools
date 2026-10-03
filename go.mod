@@ -3,7 +3,7 @@ module github.com/zekihan/k8s-tools
 go 1.27.1
 
 require (
-	github.com/lmittmann/tint v1.2.0
+	github.com/lmittmann/tint v1.2.1
 	k8s.io/apimachinery v0.37.1
 	k8s.io/client-go v0.37.1
 )
