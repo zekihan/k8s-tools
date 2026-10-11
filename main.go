@@ -7,12 +7,15 @@ import (
 	"runtime"
 )
 
+var version = "1.0.0"
+
 var (
 	defaultThreadCount = runtime.NumCPU()
 	defaultLogLevel    = "info"
 )
 
 var (
+	showVersion     = flag.Bool("version", false, "Print the application version")
 	verbose         = flag.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
 	logLevel        = flag.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
 	threadCount     = flag.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
@@ -24,6 +27,11 @@ var (
 func main() {
 	flag.Usage = printGlobalHelp // Set global usage
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	if *verbose {
 		initLogger("debug")
