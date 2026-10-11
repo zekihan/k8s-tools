@@ -26,3 +26,5 @@
 *.ipr
 *.iws
 .idea/**/.gitignore
+
+/dist/

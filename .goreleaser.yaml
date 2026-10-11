@@ -1,0 +1,31 @@
+version: 2
+project_name: k8s-tools
+snapshot:
+  version_template: "{{ .Env.RELEASE_VERSION }}"
+env:
+  - RELEASE_VERSION=1.0.0
+builds:
+  - id: cli
+    main: .
+    binary: k8s-tools
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+archives:
+  - id: cli
+    ids: [cli]
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [README.md, VERSION]
+checksum:
+  name_template: checksums.txt
+changelog:
+  disable: true
+release:
+  github:
+    owner: zekihan
+    name: k8s-tools
+  ids: [cli]
