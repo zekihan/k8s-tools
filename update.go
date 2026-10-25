@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -17,34 +18,40 @@ func update(dir string) (bool, error) {
 }
 
 func updateAll(absSearchDir string, threadCount int) error {
+	if threadCount <= 0 {
+		return fmt.Errorf("--threads must be greater than zero (got %d)", threadCount)
+	}
+
 	charts, err := findHelmCharts(absSearchDir)
 	if err != nil {
 		return fmt.Errorf("error walking directory %s: %v", absSearchDir, err)
 	}
 
 	var wg sync.WaitGroup
+	failures := make([]error, len(charts))
 
 	semaphore := make(chan struct{}, threadCount) // Limit to threadCount concurrent operations
 	defer close(semaphore)
 
 	wg.Add(len(charts))
-	for _, chart := range charts {
+	for i, chart := range charts {
 		semaphore <- struct{}{} // Acquire a slot
 
-		go func(chart string) {
+		go func(i int, chart string) {
 			defer wg.Done()
 			defer func() { <-semaphore }() // Release the slot
 
-			ok, err := update(chart)
-			if !ok && err != nil {
+			_, err := update(chart)
+			if err != nil {
+				failures[i] = fmt.Errorf("chart %s: %w", chart, err)
 				slog.Error("Error updating chart", slog.String("chart", chart), slog.Any("error", err))
 			} else {
 				slog.Info("Updated chart", slog.String("chart", chart))
 			}
-		}(chart)
+		}(i, chart)
 	}
 
 	wg.Wait() // Wait for all goroutines to finish
 
-	return nil
+	return errors.Join(failures...)
 }

@@ -8,7 +8,9 @@ k8s-tools -threads 4 update ./charts
 k8s-tools --version
 ```
 
-The update command runs `helm dependency update` for each discovered chart. Helm must be available on PATH. Without a directory argument, the command searches `$HOME/repos`. Individual chart failures are logged; the existing update command continues processing other charts.
+The update command runs `helm dependency update` for each discovered chart. Helm must be available on PATH. Without a directory argument, the command searches `$HOME/repos`.
+
+Individual chart failures are logged, and independent charts continue processing. The command exits with status 0 only when every discovered chart succeeds (including when no charts are found). It exits with status 1 if any chart fails or chart discovery fails; the final error lists every failed chart path. `--threads` must be greater than zero and must precede `update`; invalid concurrency exits with status 1 before chart discovery or Helm execution.
 
 ## Build and verify
 
