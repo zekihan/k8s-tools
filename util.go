@@ -9,13 +9,16 @@ import (
 )
 
 // isHelmDir checks if a directory contains a Helm Chart.yaml file.
-func isHelmDir(dir string) bool {
-	gitPath := filepath.Join(dir, "Chart.yaml")
-	info, err := os.Stat(gitPath)
+func isHelmDir(dir string) (bool, error) {
+	chartPath := filepath.Join(dir, "Chart.yaml")
+	info, err := os.Stat(chartPath)
 	if os.IsNotExist(err) {
-		return false
+		return false, nil
 	}
-	return !info.IsDir()
+	if err != nil {
+		return false, fmt.Errorf("error checking Helm chart %s: %w", chartPath, err)
+	}
+	return !info.IsDir(), nil
 }
 
 // runCommand executes a command in a given directory and returns its output.
@@ -31,14 +34,20 @@ func runCommand(dir string, name string, arg ...string) (string, error) {
 func findHelmCharts(searchDir string) ([]string, error) {
 	entries, err := os.ReadDir(searchDir)
 	if err != nil {
-		return nil, fmt.Errorf("error reading directory %s: %v", searchDir, err)
+		return nil, fmt.Errorf("error reading directory %s: %w", searchDir, err)
 	}
 
 	charts := make([]string, 0)
 
 	for _, entry := range entries {
 		if entry.Name() == "Chart.yaml" {
-			charts = append(charts, searchDir)
+			isChart, err := isHelmDir(searchDir)
+			if err != nil {
+				return nil, err
+			}
+			if isChart {
+				charts = append(charts, searchDir)
+			}
 			continue
 		}
 
@@ -47,7 +56,11 @@ func findHelmCharts(searchDir string) ([]string, error) {
 		}
 
 		fullPath := filepath.Join(searchDir, entry.Name())
-		if isHelmDir(fullPath) {
+		isChart, err := isHelmDir(fullPath)
+		if err != nil {
+			return nil, err
+		}
+		if isChart {
 			charts = append(charts, fullPath)
 			continue
 		}

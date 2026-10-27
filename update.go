@@ -24,7 +24,7 @@ func updateAll(absSearchDir string, threadCount int) error {
 
 	charts, err := findHelmCharts(absSearchDir)
 	if err != nil {
-		return fmt.Errorf("error walking directory %s: %v", absSearchDir, err)
+		return fmt.Errorf("error walking directory %s: %w", absSearchDir, err)
 	}
 
 	var wg sync.WaitGroup
