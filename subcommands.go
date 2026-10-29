@@ -19,12 +19,16 @@ func handleUpdateCmd(args []string) {
 		os.Exit(1)
 	}
 
-	searchDir := "$HOME/repos"
+	if pullCmd.NArg() > 1 {
+		slog.Error("expected at most one directory argument; global flags must precede update")
+		os.Exit(1)
+	}
+
+	searchDir := os.ExpandEnv("$HOME/repos")
 	if pullCmd.NArg() > 0 {
 		searchDir = pullCmd.Arg(0)
 	}
 
-	searchDir = os.ExpandEnv(searchDir)
 	absSearchDir, err := filepath.Abs(searchDir)
 	if err != nil {
 		slog.Error("Error getting absolute path", slog.String("dir", searchDir), slog.Any("error", err))
