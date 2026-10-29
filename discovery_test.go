@@ -207,3 +207,28 @@ func TestDiscoveryPermissionError(t *testing.T) {
 		t.Fatalf("discovery = %v, %v", got, err)
 	}
 }
+
+func TestDiscoveryTraversesChartNamedDirectory(t *testing.T) {
+	for _, relative := range []string{"Chart.yaml", "ordinary/Chart.yaml"} {
+		t.Run(relative, func(t *testing.T) {
+			root, charts := helmFixture(t, []bool{false})
+			container := filepath.Join(root, relative)
+			if err := os.MkdirAll(container, 0755); err != nil {
+				t.Fatal(err)
+			}
+			chart := filepath.Join(container, "nested-chart")
+			if err := os.Rename(charts[0], chart); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := findHelmCharts(context.Background(), root)
+			if err != nil || !reflect.DeepEqual(got, []string{chart}) {
+				t.Errorf("discovery = %v, %v; want [%s], nil", got, err, chart)
+			}
+			if err := updateAll(context.Background(), root, 1, defaultCommandTimeout); err != nil {
+				t.Fatal(err)
+			}
+			assertAttempted(t, []string{chart}, true)
+		})
+	}
+}

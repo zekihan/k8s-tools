@@ -100,17 +100,6 @@ func findHelmCharts(ctx context.Context, searchDir string) ([]string, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		if entry.Name() == "Chart.yaml" {
-			isChart, err := isHelmDir(searchDir)
-			if err != nil {
-				return nil, err
-			}
-			if isChart {
-				charts = append(charts, searchDir)
-			}
-			continue
-		}
-
 		if !entry.IsDir() {
 			continue
 		}
