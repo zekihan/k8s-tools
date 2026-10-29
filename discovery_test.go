@@ -62,11 +62,11 @@ func TestDiscoverySymlinkLoop(t *testing.T) {
 			if err := os.Symlink("Chart.yaml", path); err != nil {
 				t.Fatal(err)
 			}
-			got, err := findHelmCharts(root)
+			got, err := findHelmCharts(context.Background(), root)
 			if got != nil || !errors.Is(err, syscall.ELOOP) || !strings.Contains(err.Error(), path) {
 				t.Fatalf("discovery = %v, %v; want no partial results and path-qualified ELOOP", got, err)
 			}
-			if err := updateAll(root, 2); !errors.Is(err, syscall.ELOOP) {
+			if err := updateAll(context.Background(), root, 2, defaultCommandTimeout); !errors.Is(err, syscall.ELOOP) {
 				t.Fatalf("updateAll = %v", err)
 			}
 			assertAttempted(t, charts, false)
@@ -102,7 +102,7 @@ func TestDiscoveryChartEntry(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := findHelmCharts(root)
+			got, err := findHelmCharts(context.Background(), root)
 			want := 0
 			if kind == "file" {
 				want = 1
@@ -128,12 +128,12 @@ func TestDiscoveryStopsAtRootChart(t *testing.T) {
 	}
 
 	for _, searchDir := range []string{root, parent} {
-		got, err := findHelmCharts(searchDir)
+		got, err := findHelmCharts(context.Background(), searchDir)
 		if err != nil {
-			t.Fatalf("findHelmCharts(%s): %v", searchDir, err)
+			t.Fatalf("findHelmCharts(context.Background(), %s): %v", searchDir, err)
 		}
 		if !reflect.DeepEqual(got, []string{root}) {
-			t.Errorf("findHelmCharts(%s) = %v, want [%s]", searchDir, got, root)
+			t.Errorf("findHelmCharts(context.Background(), %s) = %v, want [%s]", searchDir, got, root)
 		}
 	}
 }
@@ -162,7 +162,7 @@ func TestUpdateAllDoesNotUpdateVendoredSubchart(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HELM_CALLS", calls)
 
-	if err := updateAll(parent, 4); err != nil {
+	if err := updateAll(context.Background(), parent, 4, defaultCommandTimeout); err != nil {
 		t.Fatal(err)
 	}
 	contents, err := os.ReadFile(calls)
@@ -202,7 +202,7 @@ func TestDiscoveryPermissionError(t *testing.T) {
 	if ok, err := isHelmDir(child); ok || !errors.Is(err, os.ErrPermission) {
 		t.Fatalf("isHelmDir = %v, %v", ok, err)
 	}
-	got, err := findHelmCharts(root)
+	got, err := findHelmCharts(context.Background(), root)
 	if got != nil || !errors.Is(err, os.ErrPermission) || !strings.Contains(err.Error(), path) {
 		t.Fatalf("discovery = %v, %v", got, err)
 	}

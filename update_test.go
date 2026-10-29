@@ -71,7 +71,7 @@ func TestUpdateAll(t *testing.T) {
 		} {
 			t.Run(fmt.Sprintf("%s/threads-%d", tc.name, threads), func(t *testing.T) {
 				root, charts := helmFixture(t, tc.failed)
-				err := updateAll(root, threads)
+				err := updateAll(context.Background(), root, threads, defaultCommandTimeout)
 				var wantErrors []string
 				for i, fail := range tc.failed {
 					if fail {
@@ -102,7 +102,7 @@ func TestUpdateAllInvalidThreads(t *testing.T) {
 		t.Run(fmt.Sprint(threads), func(t *testing.T) {
 			root, charts := helmFixture(t, []bool{false})
 			for _, dir := range []string{root, filepath.Join(root, "missing")} {
-				err := updateAll(dir, threads)
+				err := updateAll(context.Background(), dir, threads, defaultCommandTimeout)
 				if err == nil || !strings.Contains(err.Error(), "--threads must be greater than zero") {
 					t.Fatalf("error = %v, want concurrency validation before discovery", err)
 				}

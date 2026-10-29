@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // isHelmDir checks if a directory contains a Helm Chart.yaml file.
@@ -21,17 +24,61 @@ func isHelmDir(dir string) (bool, error) {
 	return !info.IsDir(), nil
 }
 
-// runCommand executes a command in a given directory and returns its output.
-// It suppresses stdout and stderr of the command.
-func runCommand(dir string, name string, arg ...string) (string, error) {
-	cmd := exec.Command(name, arg...)
+const defaultCommandTimeout = 5 * time.Minute
+const maxCommandOutput = 64 * 1024
+
+// tailBuffer retains bounded diagnostics while continuing to drain both streams.
+// os/exec serializes writes when stdout and stderr use the same writer.
+type tailBuffer struct {
+	data      []byte
+	truncated bool
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	n := len(p)
+	if len(b.data)+n > maxCommandOutput {
+		b.truncated = true
+		if n >= maxCommandOutput {
+			b.data = append(b.data[:0], p[n-maxCommandOutput:]...)
+			return n, nil
+		}
+		b.data = b.data[len(b.data)+n-maxCommandOutput:]
+	}
+	b.data = append(b.data, p...)
+	return n, nil
+}
+
+func runCommand(ctx context.Context, timeout time.Duration, dir, name string, arg ...string) (string, error) {
+	if timeout <= 0 {
+		return "", fmt.Errorf("--command-timeout must be greater than zero (got %s)", timeout)
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, name, arg...)
 	cmd.Dir = dir
-	output, err := cmd.CombinedOutput()
-	return strings.TrimSpace(string(output)), err
+	// Bound waits for output pipes even if a descendant escapes the process group.
+	cmd.WaitDelay = time.Second
+	cleanup := configureCommand(cmd)
+	var output tailBuffer
+	cmd.Stdout, cmd.Stderr = &output, &output
+	err := cmd.Run()
+	if err != nil {
+		cleanup()
+		// Keep the original exit/start error as well as the cancellation cause.
+		err = errors.Join(err, ctx.Err())
+	}
+	result := strings.TrimSpace(string(output.data))
+	if output.truncated {
+		result = "[output truncated; last 64 KiB]\n" + result
+	}
+	return result, err
 }
 
 // findHelmCharts recursively walks through directories to find Helm charts.
-func findHelmCharts(searchDir string) ([]string, error) {
+func findHelmCharts(ctx context.Context, searchDir string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	entries, err := os.ReadDir(searchDir)
 	if err != nil {
 		return nil, fmt.Errorf("error reading directory %s: %w", searchDir, err)
@@ -50,6 +97,9 @@ func findHelmCharts(searchDir string) ([]string, error) {
 	charts := make([]string, 0)
 
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if entry.Name() == "Chart.yaml" {
 			isChart, err := isHelmDir(searchDir)
 			if err != nil {
@@ -75,7 +125,7 @@ func findHelmCharts(searchDir string) ([]string, error) {
 			continue
 		}
 
-		subCharts, err := findHelmCharts(fullPath)
+		subCharts, err := findHelmCharts(ctx, fullPath)
 		if err != nil {
 			return nil, err
 		}
