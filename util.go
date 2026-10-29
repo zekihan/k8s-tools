@@ -37,6 +37,16 @@ func findHelmCharts(searchDir string) ([]string, error) {
 		return nil, fmt.Errorf("error reading directory %s: %w", searchDir, err)
 	}
 
+	// A chart owns its vendored subcharts. Apply the same stop-at-chart rule
+	// whether searchDir was reached recursively or supplied by the caller.
+	isChart, err := isHelmDir(searchDir)
+	if err != nil {
+		return nil, err
+	}
+	if isChart {
+		return []string{searchDir}, nil
+	}
+
 	charts := make([]string, 0)
 
 	for _, entry := range entries {

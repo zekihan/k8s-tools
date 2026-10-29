@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"syscall"
 	"testing"
@@ -109,6 +111,70 @@ func TestDiscoveryChartEntry(t *testing.T) {
 				t.Fatalf("discovery = %v, %v", got, err)
 			}
 		})
+	}
+}
+
+func TestDiscoveryStopsAtRootChart(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "root")
+	dependency := filepath.Join(root, "charts", "dependency")
+	for _, chart := range []string{root, dependency} {
+		if err := os.MkdirAll(chart, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(chart, "Chart.yaml"), []byte("apiVersion: v2\nname: fixture\nversion: 1.0.0\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, searchDir := range []string{root, parent} {
+		got, err := findHelmCharts(searchDir)
+		if err != nil {
+			t.Fatalf("findHelmCharts(%s): %v", searchDir, err)
+		}
+		if !reflect.DeepEqual(got, []string{root}) {
+			t.Errorf("findHelmCharts(%s) = %v, want [%s]", searchDir, got, root)
+		}
+	}
+}
+
+func TestUpdateAllDoesNotUpdateVendoredSubchart(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "root")
+	dependency := filepath.Join(root, "charts", "dependency")
+	siblings := []string{filepath.Join(parent, "sibling-a"), filepath.Join(parent, "sibling-b")}
+	charts := append([]string{root, dependency}, siblings...)
+	for _, chart := range charts {
+		if err := os.MkdirAll(chart, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(chart, "Chart.yaml"), []byte("apiVersion: v2\nname: fixture\nversion: 1.0.0\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	bin := t.TempDir()
+	calls := filepath.Join(t.TempDir(), "calls")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$PWD\" >> \"$HELM_CALLS\"\n[ \"$*\" = \"dependency update\" ]\n"
+	if err := os.WriteFile(filepath.Join(bin, "helm"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HELM_CALLS", calls)
+
+	if err := updateAll(parent, 4); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Fields(string(contents))
+	sort.Strings(got)
+	want := []string{root, siblings[0], siblings[1]}
+	sort.Strings(want)
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Helm ran in %v, want %v (dependency %s must be owned by %s)", got, want, dependency, root)
 	}
 }
 
