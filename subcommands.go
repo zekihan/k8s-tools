@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 )
 
 func handleUpdateCmd(args []string) {
@@ -28,9 +31,12 @@ func handleUpdateCmd(args []string) {
 		os.Exit(1)
 	}
 
-	slog.Info("Starting git pull script", slog.String("dir", absSearchDir))
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	if err := updateAll(absSearchDir, *threadCount); err != nil {
+	slog.Info("Starting Helm dependency updates", slog.String("dir", absSearchDir))
+
+	if err := updateAll(ctx, absSearchDir, *threadCount, *commandTimeout); err != nil {
 		slog.Error("Error updating Helm charts", slog.Any("error", err))
 		os.Exit(1)
 	}

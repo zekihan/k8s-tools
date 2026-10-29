@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,7 +20,7 @@ func TestFindHelmCharts(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := findHelmCharts(root)
+	got, err := findHelmCharts(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +28,7 @@ func TestFindHelmCharts(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("charts = %v, want %v", got, want)
 	}
-	if _, err := findHelmCharts(filepath.Join(root, "missing")); err == nil {
+	if _, err := findHelmCharts(context.Background(), filepath.Join(root, "missing")); err == nil {
 		t.Fatal("expected missing directory error")
 	}
 }
@@ -43,7 +44,7 @@ func TestUpdateRunsHelmInChartDirectory(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HELM_CALLS", calls)
 	t.Setenv("HELM_EXIT", "0")
-	ok, err := update(chart)
+	ok, err := update(context.Background(), defaultCommandTimeout, chart)
 	if !ok || err != nil {
 		t.Fatalf("update: ok=%v err=%v", ok, err)
 	}
@@ -55,7 +56,7 @@ func TestUpdateRunsHelmInChartDirectory(t *testing.T) {
 		t.Fatalf("helm invocation = %q", got)
 	}
 	t.Setenv("HELM_EXIT", "1")
-	if ok, err := update(chart); ok || err == nil {
+	if ok, err := update(context.Background(), defaultCommandTimeout, chart); ok || err == nil {
 		t.Fatalf("failed helm: ok=%v err=%v", ok, err)
 	}
 }
