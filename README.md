@@ -29,3 +29,5 @@ Use the Go version in `go.mod`. Run `make check` for formatting, vet, race tests
 ## Release
 
 The release workflow checks a version tag before publishing CLI archives and checksums to GitHub. Pull request checks use read-only repository access and no secrets. Only the tag-triggered publication job receives contents:write, using the job's short-lived `GITHUB_TOKEN`. No repository secrets are required.
+
+Publishing and manual recovery: [Publishing](docs/publishing.md).
