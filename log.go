@@ -27,7 +27,7 @@ func initLogger(s string) {
 
 	// Initialize the logger
 	logger := slog.New(
-		tint.NewHandler(os.Stdout, &tint.Options{
+		tint.NewTextHandler(os.Stdout, &tint.Options{
 			Level:      level,
 			TimeFormat: time.RFC3339,
 		}),

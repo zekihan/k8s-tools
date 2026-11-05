@@ -31,6 +31,13 @@ func runInputCLI(t *testing.T, args ...string) (int, string) {
 	return exitErr.ExitCode(), string(output)
 }
 
+func TestHelpCLIRejectsUnknownCommand(t *testing.T) {
+	code, output := runInputCLI(t, "help", "bogus")
+	if code != 1 || !strings.Contains(output, "Unknown command: bogus") {
+		t.Errorf("exit = %d, output = %s; want unknown command error", code, output)
+	}
+}
+
 func TestUpdateCLIRejectsExtraArguments(t *testing.T) {
 	for _, extra := range [][]string{{"second-directory"}, {"--threads", "0"}, {"--typo"}} {
 		t.Run(strings.Join(extra, "_"), func(t *testing.T) {

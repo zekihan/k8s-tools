@@ -199,7 +199,11 @@ func TestUpdateCLISignals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer log.Close()
+			defer func() {
+				if err := log.Close(); err != nil {
+					t.Errorf("close log: %v", err)
+				}
+			}()
 			cmd.Stdout, cmd.Stderr = log, log
 			if err := cmd.Start(); err != nil {
 				t.Fatal(err)
