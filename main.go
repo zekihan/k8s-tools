@@ -15,14 +15,11 @@ var (
 )
 
 var (
-	showVersion     = flag.Bool("version", false, "Print the application version")
-	verbose         = flag.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
-	logLevel        = flag.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
-	commandTimeout  = flag.Duration("command-timeout", defaultCommandTimeout, "Deadline for each Helm command, e.g. 30s or 5m; must be positive (global)")
-	threadCount     = flag.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
-	kubeconfig      = flag.String("kubeconfig", "", "Path to the kubeconfig file (global)")
-	namespace       = flag.String("namespace", "default", "Kubernetes namespace to use (global)")
-	explicitContext = flag.String("context", "", "Kubernetes context to use (global)")
+	showVersion    = flag.Bool("version", false, "Print the application version")
+	verbose        = flag.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
+	logLevel       = flag.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
+	commandTimeout = flag.Duration("command-timeout", defaultCommandTimeout, "Deadline for each Helm command, e.g. 30s or 5m; must be positive (global)")
+	threadCount    = flag.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
 )
 
 func main() {
@@ -62,6 +59,7 @@ func main() {
 		default:
 			fmt.Printf("Unknown command: %s\n\n", args[1])
 			printGlobalHelp()
+			os.Exit(1)
 		}
 	default:
 		fmt.Printf("Unknown command: %s\n\n", args[0])
