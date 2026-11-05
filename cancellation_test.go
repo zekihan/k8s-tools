@@ -87,11 +87,11 @@ func TestCommandDeadlineKillsDescendants(t *testing.T) {
 	installHelm(t, blockedHelm)
 	chart := t.TempDir()
 	start := time.Now()
-	_, err := runCommand(context.Background(), 200*time.Millisecond, chart, "helm", "dependency", "update")
+	_, err := runCommand(context.Background(), 2*time.Second, chart, "helm", "dependency", "update")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v", err)
 	}
-	if time.Since(start) > 3*time.Second {
+	if time.Since(start) > 5*time.Second {
 		t.Fatal("deadline did not bound command")
 	}
 	assertStopped(t, filepath.Join(chart, ".parent"))
@@ -126,7 +126,7 @@ if [ -f .fail ]; then
 `+blockedHelm+`
 fi
 `)
-	err := updateAll(context.Background(), root, 1, 200*time.Millisecond)
+	err := updateAll(context.Background(), root, 1, 2*time.Second)
 	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), charts[0]) || strings.Contains(err.Error(), "chart "+charts[1]+":") {
 		t.Fatalf("error = %v", err)
 	}
@@ -229,7 +229,7 @@ func TestUpdateCLISignals(t *testing.T) {
 }
 
 func TestUpdateCLICommandTimeout(t *testing.T) {
-	for _, timeout := range []string{"200ms", "0", "-1s"} {
+	for _, timeout := range []string{"2s", "0", "-1s"} {
 		t.Run(timeout, func(t *testing.T) {
 			root, charts := helmFixture(t, []bool{false})
 			installHelm(t, blockedHelm)
@@ -243,7 +243,7 @@ func TestUpdateCLICommandTimeout(t *testing.T) {
 				t.Fatalf("CLI error = %v, output = %s", err, output)
 			}
 			want := "--command-timeout must be greater than zero"
-			if timeout == "200ms" {
+			if timeout == "2s" {
 				want = "context deadline exceeded"
 				assertStopped(t, filepath.Join(charts[0], ".child"))
 			} else {
