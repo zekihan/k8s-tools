@@ -22,9 +22,9 @@ Discovery treats a missing `Chart.yaml` as a non-chart. Other filesystem errors 
 
 ## Build and verify
 
-Use the Go version in `go.mod`. Run `make check` for formatting, vet, race tests, and a local binary. Run `make release-check` with GoReleaser 2.18.2 to create Linux and macOS archives for amd64 and arm64 plus SHA-256 checksums without publishing.
+Use the Go version in `go.mod`. Run `make check` for formatting, vet, race tests, and a local binary. Run `make release-check` with the GoReleaser version pinned in `.github/workflows/checks.yaml` to create Linux and macOS archives for amd64 and arm64 plus SHA-256 checksums without publishing.
 
-`VERSION` records the application version. Keep it aligned with the default version in `main.go`, the release snapshot version, and the Dockerfile default. Release tags use `v<VERSION>`.
+`VERSION` records the application version. Keep it aligned with the default version in `main.go` and the release snapshot version. Release tags use `v<VERSION>`.
 
 ## Release
 
