@@ -18,6 +18,9 @@ func update(ctx context.Context, timeout time.Duration, dir string) (bool, error
 		}
 		return false, fmt.Errorf("error fetching: %w", err)
 	}
+	if fetchOutput != "" {
+		slog.Debug("Helm dependency update output", slog.String("dir", dir), slog.String("output", fetchOutput))
+	}
 	return true, nil
 }
 

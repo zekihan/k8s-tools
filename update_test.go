@@ -219,6 +219,35 @@ esac
 	}
 }
 
+func TestUpdateCLISuccessDiagnosticsRespectLogLevel(t *testing.T) {
+	root, _ := helmFixture(t, []bool{false})
+	installHelm(t, `[ "$*" = "dependency update" ] || exit 99
+printf 'downloaded fixture dependency\n'
+printf 'warning: fixture repository metadata is stale\n' >&2
+`)
+	for _, tc := range []struct {
+		name  string
+		flags []string
+		want  int
+	}{
+		{"default", nil, 0},
+		{"debug", []string{"--log-level", "debug"}, 1},
+		{"verbose", []string{"--log-level", "error", "-v"}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code, output := runInputCLI(t, append(tc.flags, "update", root)...)
+			if code != 0 {
+				t.Fatalf("exit = %d, want 0\n%s", code, output)
+			}
+			for _, diagnostic := range []string{"downloaded fixture dependency", "warning: fixture repository metadata is stale"} {
+				if count := strings.Count(output, diagnostic); count != tc.want {
+					t.Errorf("diagnostic %q appears %d times, want %d\n%s", diagnostic, count, tc.want, output)
+				}
+			}
+		})
+	}
+}
+
 func TestUpdateCLIUsesRelativeHelmPaths(t *testing.T) {
 	root, charts := helmFixture(t, []bool{false, false})
 	installHelm(t, `[ "$*" = "dependency update" ] && [ -f Chart.yaml ] || exit 99
