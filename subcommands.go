@@ -38,7 +38,12 @@ func handleUpdateCmd(args []string) {
 
 	slog.Info("Starting Helm dependency updates", slog.String("dir", absSearchDir))
 
-	if err := updateAll(ctx, absSearchDir, *threadCount, *commandTimeout); err != nil {
+	// Helm uses separate process groups, so updateAll must finish before SIGPIPE
+	// can terminate the CLI.
+	ctx, stopBrokenPipe := signal.NotifyContext(ctx, syscall.SIGPIPE)
+	err = updateAll(ctx, absSearchDir, *threadCount, *commandTimeout)
+	stopBrokenPipe()
+	if err != nil {
 		slog.Error("Error updating Helm charts", slog.Any("error", err))
 		os.Exit(1)
 	}
