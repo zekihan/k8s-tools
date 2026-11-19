@@ -22,9 +22,14 @@ func handleUpdateCmd(args []string) {
 		os.Exit(1)
 	}
 
-	searchDir := os.ExpandEnv("$HOME/repos")
-	if pullCmd.NArg() > 0 {
-		searchDir = pullCmd.Arg(0)
+	searchDir := pullCmd.Arg(0)
+	if pullCmd.NArg() == 0 {
+		home := os.Getenv("HOME")
+		if home == "" {
+			fmt.Fprintln(os.Stderr, "HOME is unset or empty. Specify a directory for update.")
+			os.Exit(1)
+		}
+		searchDir = home + "/repos"
 	}
 
 	absSearchDir, err := absoluteUpdateDir(searchDir)
