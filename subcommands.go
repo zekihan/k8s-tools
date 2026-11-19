@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 )
 
@@ -29,9 +31,9 @@ func handleUpdateCmd(args []string) {
 		searchDir = pullCmd.Arg(0)
 	}
 
-	absSearchDir, err := filepath.Abs(searchDir)
+	absSearchDir, err := absoluteUpdateDir(searchDir)
 	if err != nil {
-		slog.Error("Error getting absolute path", slog.String("dir", searchDir), slog.Any("error", err))
+		slog.Error("Error resolving update directory", slog.String("dir", searchDir), slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -46,4 +48,21 @@ func handleUpdateCmd(args []string) {
 	}
 
 	slog.Info("Helm chart dependencies update completed", slog.String("dir", absSearchDir))
+}
+
+func absoluteUpdateDir(dir string) (string, error) {
+	separator := string(filepath.Separator)
+	if !slices.Contains(strings.Split(dir, separator), "..") {
+		return filepath.Abs(dir)
+	}
+
+	// Resolve symlinks before a parent component can remove them from the path.
+	if !filepath.IsAbs(dir) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		dir = wd + separator + dir
+	}
+	return filepath.EvalSymlinks(dir)
 }

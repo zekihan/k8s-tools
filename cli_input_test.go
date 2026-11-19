@@ -70,6 +70,42 @@ func TestUpdateCLIPreservesLiteralDollarInDirectory(t *testing.T) {
 	assertAttempted(t, []string{expanded}, false)
 }
 
+func TestUpdateCLIResolvesSymlinkBeforeParentDirectory(t *testing.T) {
+	for _, form := range []string{"absolute", "relative"} {
+		t.Run(form, func(t *testing.T) {
+			root, charts := helmFixture(t, []bool{false, false})
+			target := filepath.Join(root, "target")
+			child := filepath.Join(target, "child")
+			if err := os.MkdirAll(child, 0755); err != nil {
+				t.Fatal(err)
+			}
+			chartName := filepath.Base(charts[0])
+			want := filepath.Join(target, chartName)
+			if err := os.Rename(charts[1], want); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(child, filepath.Join(root, "link")); err != nil {
+				t.Fatal(err)
+			}
+
+			// Joining these components would remove the symlink from the operand.
+			sep := string(filepath.Separator)
+			dir := "link" + sep + ".." + sep + chartName
+			if form == "absolute" {
+				dir = root + sep + dir
+			} else {
+				t.Chdir(root)
+			}
+			code, output := runInputCLI(t, "update", dir)
+			if code != 0 {
+				t.Fatalf("exit = %d, output = %s", code, output)
+			}
+			assertAttempted(t, []string{want}, true)
+			assertAttempted(t, charts[:1], false)
+		})
+	}
+}
+
 func TestUpdateCLIDefaultDirectory(t *testing.T) {
 	root, charts := helmFixture(t, []bool{false})
 	home := t.TempDir()
