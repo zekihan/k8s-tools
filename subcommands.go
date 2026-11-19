@@ -3,24 +3,22 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 )
 
 func handleUpdateCmd(args []string) {
-	pullCmd := flag.NewFlagSet("update", flag.ExitOnError)
-	pullCmd.Usage = func() { printUpdateHelp(pullCmd) }
-	err := pullCmd.Parse(args)
-	if err != nil {
-		slog.Error("Error parsing pull command", slog.Any("error", err))
-		os.Exit(1)
-	}
+	pullCmd := flag.NewFlagSet("update", flag.ContinueOnError)
+	parseCLIFlags(pullCmd, args, printUpdateHelp)
 
 	if pullCmd.NArg() > 1 {
-		slog.Error("expected at most one directory argument; global flags must precede update")
+		fmt.Fprintln(os.Stderr, "expected at most one directory argument; global flags must precede update")
 		os.Exit(1)
 	}
 
@@ -29,9 +27,9 @@ func handleUpdateCmd(args []string) {
 		searchDir = pullCmd.Arg(0)
 	}
 
-	absSearchDir, err := filepath.Abs(searchDir)
+	absSearchDir, err := absoluteUpdateDir(searchDir)
 	if err != nil {
-		slog.Error("Error getting absolute path", slog.String("dir", searchDir), slog.Any("error", err))
+		slog.Error("Error resolving update directory", slog.String("dir", searchDir), slog.Any("error", err))
 		os.Exit(1)
 	}
 
@@ -46,4 +44,21 @@ func handleUpdateCmd(args []string) {
 	}
 
 	slog.Info("Helm chart dependencies update completed", slog.String("dir", absSearchDir))
+}
+
+func absoluteUpdateDir(dir string) (string, error) {
+	separator := string(filepath.Separator)
+	if !slices.Contains(strings.Split(dir, separator), "..") {
+		return filepath.Abs(dir)
+	}
+
+	// Resolve symlinks before a parent component can remove them from the path.
+	if !filepath.IsAbs(dir) {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		dir = wd + separator + dir
+	}
+	return filepath.EvalSymlinks(dir)
 }
