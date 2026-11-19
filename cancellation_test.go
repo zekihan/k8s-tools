@@ -219,6 +219,57 @@ func TestUpdateCLISignals(t *testing.T) {
 	}
 }
 
+func TestUpdateCLIBrokenLogPipeStopsHelm(t *testing.T) {
+	root, charts := helmFixture(t, []bool{false, false})
+	installHelm(t, `if [ "${PWD##*/}" = chart-0 ]; then
+`+blockedHelm+`
+else
+    printf 'ready\n' > .ready
+    while [ ! -f .release ]; do sleep 0.01; done
+fi
+`)
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestUpdateCLIProcess$", "--", "--threads", "2", "update", root)
+	cmd.Env = append(os.Environ(), "K8S_TOOLS_CLI_FIXTURE=1")
+	cmd.Stdout = writer
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	parent := filepath.Join(charts[0], ".parent")
+	child := filepath.Join(charts[0], ".child")
+	waitFile(t, parent)
+	defer assertStopped(t, parent)
+	waitFile(t, child)
+	defer assertStopped(t, child)
+	waitFile(t, filepath.Join(charts[1], ".ready"))
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(charts[1], ".release"), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	// The second chart logs completion to the closed pipe while the first is running.
+	err = awaitUpdate(t, done)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("CLI error = %v, want a SIGPIPE exit", err)
+	}
+	if status, ok := exitErr.Sys().(syscall.WaitStatus); !ok || status.Signal() != syscall.SIGPIPE {
+		t.Errorf("CLI error = %v, want a SIGPIPE exit", err)
+	}
+}
+
 func TestUpdateCLICommandTimeout(t *testing.T) {
 	for _, timeout := range []string{"2s", "0", "-1s"} {
 		t.Run(timeout, func(t *testing.T) {
