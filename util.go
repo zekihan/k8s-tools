@@ -31,21 +31,37 @@ const maxCommandOutput = 64 * 1024
 // os/exec serializes writes when stdout and stderr use the same writer.
 type tailBuffer struct {
 	data      []byte
+	start     int
 	truncated bool
 }
 
 func (b *tailBuffer) Write(p []byte) (int, error) {
 	n := len(p)
-	if len(b.data)+n > maxCommandOutput {
-		b.truncated = true
-		if n >= maxCommandOutput {
-			b.data = append(b.data[:0], p[n-maxCommandOutput:]...)
-			return n, nil
-		}
-		b.data = b.data[len(b.data)+n-maxCommandOutput:]
+	if n >= maxCommandOutput {
+		b.truncated = len(b.data) > 0 || n > maxCommandOutput
+		b.data = append(b.data[:0], p[n-maxCommandOutput:]...)
+		b.start = 0
+		return n, nil
 	}
-	b.data = append(b.data, p...)
+	if fill := min(n, maxCommandOutput-len(b.data)); fill > 0 {
+		b.data = append(b.data, p[:fill]...)
+		p = p[fill:]
+	}
+	if len(p) > 0 {
+		// Once full, the buffer is a ring with the oldest byte at start.
+		b.truncated = true
+		written := copy(b.data[b.start:], p)
+		copy(b.data, p[written:])
+		b.start = (b.start + len(p)) % maxCommandOutput
+	}
 	return n, nil
+}
+
+func (b *tailBuffer) String() string {
+	if b.start == 0 {
+		return string(b.data)
+	}
+	return string(b.data[b.start:]) + string(b.data[:b.start])
 }
 
 func setHelmPathOverrides(cmd *exec.Cmd) error {
@@ -103,7 +119,7 @@ func runCommand(ctx context.Context, timeout time.Duration, dir, name string, ar
 		// Keep the original exit/start error as well as the cancellation cause.
 		err = errors.Join(err, ctx.Err())
 	}
-	result := strings.TrimSpace(string(output.data))
+	result := strings.TrimSpace(output.String())
 	if output.truncated {
 		result = "[output truncated; last 64 KiB]\n" + result
 	}
