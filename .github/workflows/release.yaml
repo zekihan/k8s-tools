@@ -37,3 +37,5 @@ jobs:
     with:
       version: ${{ needs.decide.outputs.version }}
       binaries: true
+      prepare-command: >-
+        printf 'GORELEASER_CURRENT_TAG=%s\n' "$GITHUB_REF_NAME" >> "$GITHUB_ENV"
