@@ -12,20 +12,23 @@ import (
 	"time"
 )
 
+func installHelm(t *testing.T, script string) {
+	t.Helper()
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "helm"), []byte("#!/bin/sh\n"+script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 // Each fixture writes in its own chart directory, so concurrent Helm calls do
 // not share an output file. No real Helm or cluster access is needed.
 func helmFixture(t *testing.T, failed []bool) (string, []string) {
 	t.Helper()
-	bin := t.TempDir()
-	script := `#!/bin/sh
-[ "$*" = "dependency update" ] || exit 99
+	installHelm(t, `[ "$*" = "dependency update" ] || exit 99
 printf 'attempted\n' > .attempted
 [ ! -f .fail ]
-`
-	if err := os.WriteFile(filepath.Join(bin, "helm"), []byte(script), 0755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+`)
 	root := t.TempDir()
 	var charts []string
 	for i, fail := range failed {
@@ -174,4 +177,53 @@ func TestUpdateCLI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateCLIUsesRelativeHelmPaths(t *testing.T) {
+	root, charts := helmFixture(t, []bool{false, false})
+	installHelm(t, `[ "$*" = "dependency update" ] && [ -f Chart.yaml ] || exit 99
+printf 'attempted\n' > .attempted
+status=0
+for path in "$HELM_REPOSITORY_CONFIG" "$HELM_REGISTRY_CONFIG" "$HELM_REPOSITORY_CACHE" \
+            "$HELM_CONTENT_CACHE" "$HELM_CONFIG_HOME" "$HELM_CACHE_HOME" "$HELM_DATA_HOME" "$HELM_PLUGINS"; do
+    if [ ! -e "$path" ]; then
+        printf 'missing Helm path: %s\n' "$path" >&2
+        status=1
+    fi
+done
+exit "$status"
+`)
+	t.Chdir(t.TempDir())
+	for _, setting := range []struct {
+		name, path, contents string
+	}{
+		{"HELM_REPOSITORY_CONFIG", "helm config/repositories.yaml", "apiVersion: v1\nrepositories: []\n"},
+		{"HELM_REGISTRY_CONFIG", "helm config/registry.json", `{"auths":{}}`},
+		{"HELM_REPOSITORY_CACHE", "repository-cache", ""},
+		{"HELM_CONTENT_CACHE", "content-cache", ""},
+		{"HELM_CONFIG_HOME", "config-home", ""},
+		{"HELM_CACHE_HOME", "cache-home", ""},
+		{"HELM_DATA_HOME", "data-home", ""},
+		{"HELM_PLUGINS", "plugins", ""},
+	} {
+		if setting.contents == "" {
+			if err := os.Mkdir(setting.path, 0755); err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			if err := os.MkdirAll(filepath.Dir(setting.path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(setting.path, []byte(setting.contents), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Setenv(setting.name, setting.path)
+	}
+
+	code, output := runInputCLI(t, "--threads", "2", "update", root)
+	if code != 0 {
+		t.Fatalf("exit = %d, want 0 with caller-relative Helm paths\n%s", code, output)
+	}
+	assertAttempted(t, charts, true)
 }

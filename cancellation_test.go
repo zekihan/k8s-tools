@@ -17,15 +17,6 @@ import (
 	"time"
 )
 
-func installHelm(t *testing.T, script string) {
-	t.Helper()
-	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "helm"), []byte("#!/bin/sh\n"+script), 0755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-}
-
 func waitFile(t *testing.T, path string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

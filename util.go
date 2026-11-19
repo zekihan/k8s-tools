@@ -48,6 +48,37 @@ func (b *tailBuffer) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+func setHelmPathOverrides(cmd *exec.Cmd) error {
+	var prefix string
+	for _, name := range []string{
+		"HELM_CACHE_HOME",
+		"HELM_CONFIG_HOME",
+		"HELM_CONTENT_CACHE",
+		"HELM_DATA_HOME",
+		"HELM_PLUGINS",
+		"HELM_REGISTRY_CONFIG",
+		"HELM_REPOSITORY_CACHE",
+		"HELM_REPOSITORY_CONFIG",
+	} {
+		path := os.Getenv(name)
+		if path == "" || filepath.IsAbs(path) {
+			continue
+		}
+		if prefix == "" {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("resolve relative Helm paths: %w", err)
+			}
+			sep := string(filepath.Separator)
+			prefix = strings.TrimSuffix(cwd, sep) + sep
+			cmd.Env = cmd.Environ()
+		}
+		// Prefix the path without cleaning components that Helm may resolve through symlinks.
+		cmd.Env = append(cmd.Env, name+"="+prefix+path)
+	}
+	return nil
+}
+
 func runCommand(ctx context.Context, timeout time.Duration, dir, name string, arg ...string) (string, error) {
 	if timeout <= 0 {
 		return "", fmt.Errorf("--command-timeout must be greater than zero (got %s)", timeout)
@@ -56,6 +87,11 @@ func runCommand(ctx context.Context, timeout time.Duration, dir, name string, ar
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, arg...)
 	cmd.Dir = dir
+	if name == "helm" {
+		if err := setHelmPathOverrides(cmd); err != nil {
+			return "", err
+		}
+	}
 	// Bound waits for output pipes even if a descendant escapes the process group.
 	cmd.WaitDelay = time.Second
 	cleanup := configureCommand(cmd)
