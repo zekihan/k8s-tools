@@ -179,6 +179,46 @@ func TestUpdateCLI(t *testing.T) {
 	}
 }
 
+func TestUpdateCLIFailureDiagnosticsOnce(t *testing.T) {
+	for _, level := range []string{"info", "debug"} {
+		t.Run(level, func(t *testing.T) {
+			root, charts := helmFixture(t, []bool{true, true, false})
+			installHelm(t, `[ "$*" = "dependency update" ] || exit 99
+printf 'attempted\n' > .attempted
+case "${PWD##*/}" in
+    chart-0)
+        # The other worker can start chart-2 only after chart-1 has failed.
+        while [ ! -f ../chart-2/.attempted ]; do sleep 0.01; done
+        printf 'first repository rejected fixture\n' >&2
+        exit 7
+        ;;
+    chart-1)
+        printf 'second repository rejected fixture\n' >&2
+        exit 8
+        ;;
+esac
+`)
+			code, output := runInputCLI(t, "--threads", "2", "--command-timeout", "5s", "--log-level", level, "update", root)
+			if code != 1 {
+				t.Fatalf("exit = %d, want 1\n%s", code, output)
+			}
+			assertAttempted(t, charts, true)
+			previous := -1
+			for i, diagnostic := range []string{"first repository rejected fixture", "second repository rejected fixture"} {
+				if count := strings.Count(output, diagnostic); count != 1 {
+					t.Errorf("diagnostic %q appears %d times, want 1\n%s", diagnostic, count, output)
+				}
+				detail := fmt.Sprintf("chart %s: error fetching: exit status %d; output: %s", charts[i], 7+i, diagnostic)
+				if position := strings.Index(output, detail); position > previous {
+					previous = position
+				} else {
+					t.Errorf("missing or out-of-order detail %q\n%s", detail, output)
+				}
+			}
+		})
+	}
+}
+
 func TestUpdateCLIUsesRelativeHelmPaths(t *testing.T) {
 	root, charts := helmFixture(t, []bool{false, false})
 	installHelm(t, `[ "$*" = "dependency update" ] && [ -f Chart.yaml ] || exit 99

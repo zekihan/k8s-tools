@@ -16,7 +16,7 @@ Individual chart failures are logged, and independent charts continue processing
 
 Each Helm invocation has a five-minute deadline, configurable with the global `--command-timeout` duration flag (for example `30s` or `2m`). The value must be positive and the flag must precede `update`. A timeout fails that chart and lets independent charts continue. SIGINT (Ctrl-C) or SIGTERM cancels discovery and scheduling, stops running Helm process groups on Linux/macOS, waits for workers, and exits with status 1. Previously recorded failures remain in the final error. Descendants that deliberately create a new process group/session are outside group cleanup; output-pipe waits are bounded to one additional second. Discovery checks cancellation between filesystem operations; an individual blocked filesystem call cannot be interrupted.
 
-Failure diagnostics retain the last 64 KiB of combined stdout/stderr per command and mark truncated output. These diagnostics appear in error-level logs without requiring verbose mode.
+Failure diagnostics retain the last 64 KiB of combined stdout/stderr per command and mark truncated output. The final error includes each failed chart's diagnostics once, in discovery order.
 
 Discovery updates root charts only: once a chart is found, its directory is not traversed, so vendored subcharts remain owned by their parent chart.
 
