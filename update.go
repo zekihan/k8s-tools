@@ -13,11 +13,13 @@ func update(ctx context.Context, timeout time.Duration, dir string) (bool, error
 	slog.Info("Updating chart", slog.String("dir", dir))
 	fetchOutput, err := runCommand(ctx, timeout, dir, "helm", "dependency", "update")
 	if err != nil {
-		slog.Debug("Error updating chart", slog.String("dir", dir), slog.Any("error", err), slog.String("output", fetchOutput))
 		if fetchOutput != "" {
 			return false, fmt.Errorf("error fetching: %w; output: %s", err, fetchOutput)
 		}
 		return false, fmt.Errorf("error fetching: %w", err)
+	}
+	if fetchOutput != "" {
+		slog.Debug("Helm dependency update output", slog.String("dir", dir), slog.String("output", fetchOutput))
 	}
 	return true, nil
 }
@@ -53,7 +55,7 @@ func updateAll(ctx context.Context, absSearchDir string, threadCount int, timeou
 				_, err := update(ctx, timeout, chart)
 				if err != nil {
 					failures[i] = fmt.Errorf("chart %s: %w", chart, err)
-					slog.Error("Error updating chart", slog.String("chart", chart), slog.Any("error", err))
+					slog.Error("Error updating chart", slog.String("chart", chart))
 				} else {
 					slog.Info("Updated chart", slog.String("chart", chart))
 				}
