@@ -14,17 +14,18 @@ var (
 	defaultLogLevel    = "info"
 )
 
+var globalFlags = flag.NewFlagSet("k8s-tools", flag.ContinueOnError)
+
 var (
-	showVersion    = flag.Bool("version", false, "Print the application version")
-	verbose        = flag.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
-	logLevel       = flag.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
-	commandTimeout = flag.Duration("command-timeout", defaultCommandTimeout, "Deadline for each Helm command, e.g. 30s or 5m; must be positive (global)")
-	threadCount    = flag.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
+	showVersion    = globalFlags.Bool("version", false, "Print the application version")
+	verbose        = globalFlags.Bool("v", false, "Enable verbose (DEBUG level) logging (global)")
+	logLevel       = globalFlags.String("log-level", defaultLogLevel, "Set log level: debug, info, warn, error (global)")
+	commandTimeout = globalFlags.Duration("command-timeout", defaultCommandTimeout, "Deadline for each Helm command, e.g. 30s or 5m; must be positive (global)")
+	threadCount    = globalFlags.Int("threads", defaultThreadCount, "Number of threads to use for Helm chart updates (global)")
 )
 
 func main() {
-	flag.Usage = printGlobalHelp // Set global usage
-	flag.Parse()
+	parseCLIFlags(globalFlags, os.Args[1:], printGlobalHelp)
 
 	if *showVersion {
 		fmt.Println(version)
@@ -37,9 +38,9 @@ func main() {
 		initLogger(*logLevel)
 	}
 
-	args := flag.Args()
+	args := globalFlags.Args()
 	if len(args) < 1 {
-		printGlobalHelp()
+		printGlobalHelp(globalFlags)
 		os.Exit(1)
 	}
 
@@ -49,21 +50,21 @@ func main() {
 	case "help":
 		// Allow "help <command>" for specific help
 		if len(args) <= 1 {
-			printGlobalHelp()
-			os.Exit(0)
+			printRequestedHelp(globalFlags, printGlobalHelp)
+			return
 		}
 
 		switch args[1] {
 		case "update":
-			printUpdateHelp(flag.NewFlagSet("update", flag.ExitOnError)) // Pass a dummy flagset for consistency
+			printRequestedHelp(flag.NewFlagSet("update", flag.ContinueOnError), printUpdateHelp)
 		default:
-			fmt.Printf("Unknown command: %s\n\n", args[1])
-			printGlobalHelp()
+			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", args[1])
+			printGlobalHelp(globalFlags)
 			os.Exit(1)
 		}
 	default:
-		fmt.Printf("Unknown command: %s\n\n", args[0])
-		printGlobalHelp()
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", args[0])
+		printGlobalHelp(globalFlags)
 		os.Exit(1)
 	}
 }

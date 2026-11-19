@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -13,28 +14,69 @@ import (
 
 func runInputCLI(t *testing.T, args ...string) (int, string) {
 	t.Helper()
+	code, stdout, stderr := runInputCLIStreams(t, args...)
+	return code, stdout + stderr
+}
+
+func runInputCLIStreams(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, os.Args[0], append([]string{"-test.run=^TestUpdateCLIProcess$", "--"}, args...)...)
 	cmd.Env = append(os.Environ(), "K8S_TOOLS_CLI_FIXTURE=1")
-	output, err := cmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
 	if ctx.Err() != nil {
-		t.Fatalf("CLI timed out: %v\n%s", ctx.Err(), output)
+		t.Fatalf("CLI timed out: %v\n%s\n%s", ctx.Err(), &stdout, &stderr)
 	}
 	if err == nil {
-		return 0, string(output)
+		return 0, stdout.String(), stderr.String()
 	}
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
 		t.Fatal(err)
 	}
-	return exitErr.ExitCode(), string(output)
+	return exitErr.ExitCode(), stdout.String(), stderr.String()
 }
 
-func TestHelpCLIRejectsUnknownCommand(t *testing.T) {
-	code, output := runInputCLI(t, "help", "bogus")
-	if code != 1 || !strings.Contains(output, "Unknown command: bogus") {
-		t.Errorf("exit = %d, output = %s; want unknown command error", code, output)
+func TestCLIHelpUsesStdout(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--help"}, "Print the application version"},
+		{[]string{"help"}, "Print the application version"},
+		{[]string{"update", "--help"}, "The directory to search for root Helm charts"},
+		{[]string{"help", "update"}, "The directory to search for root Helm charts"},
+	} {
+		t.Run(strings.Join(tc.args, "_"), func(t *testing.T) {
+			code, stdout, stderr := runInputCLIStreams(t, tc.args...)
+			if code != 0 || stderr != "" || !strings.Contains(stdout, "Usage:") || !strings.Contains(stdout, tc.want) {
+				t.Errorf("exit = %d, stdout = %q, stderr = %q; want complete help on stdout", code, stdout, stderr)
+			}
+		})
+	}
+}
+
+func TestCLIUsageErrorsUseStderr(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		code int
+		want string
+	}{
+		{nil, 1, "Print the application version"},
+		{[]string{"bogus"}, 1, "Unknown command: bogus"},
+		{[]string{"help", "bogus"}, 1, "Unknown command: bogus"},
+		{[]string{"--typo"}, 2, "flag provided but not defined"},
+		{[]string{"update", "--typo"}, 2, "flag provided but not defined"},
+	} {
+		t.Run(strings.Join(tc.args, "_"), func(t *testing.T) {
+			code, stdout, stderr := runInputCLIStreams(t, tc.args...)
+			if code != tc.code || stdout != "" || !strings.Contains(stderr, "Usage:") || !strings.Contains(stderr, tc.want) {
+				t.Errorf("exit = %d, stdout = %q, stderr = %q; want exit %d and usage error on stderr", code, stdout, stderr, tc.code)
+			}
+		})
 	}
 }
 
@@ -43,9 +85,9 @@ func TestUpdateCLIRejectsExtraArguments(t *testing.T) {
 		t.Run(strings.Join(extra, "_"), func(t *testing.T) {
 			root, charts := helmFixture(t, []bool{false})
 			args := append([]string{"update", root}, extra...)
-			code, output := runInputCLI(t, args...)
-			if code != 1 || !strings.Contains(output, "expected at most one directory argument") {
-				t.Errorf("exit = %d, output = %s; want argument error", code, output)
+			code, stdout, stderr := runInputCLIStreams(t, args...)
+			if code != 1 || stdout != "" || !strings.Contains(stderr, "expected at most one directory argument") {
+				t.Errorf("exit = %d, stdout = %q, stderr = %q; want argument error on stderr", code, stdout, stderr)
 			}
 			assertAttempted(t, charts, false)
 		})

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,16 +14,11 @@ import (
 )
 
 func handleUpdateCmd(args []string) {
-	pullCmd := flag.NewFlagSet("update", flag.ExitOnError)
-	pullCmd.Usage = func() { printUpdateHelp(pullCmd) }
-	err := pullCmd.Parse(args)
-	if err != nil {
-		slog.Error("Error parsing pull command", slog.Any("error", err))
-		os.Exit(1)
-	}
+	pullCmd := flag.NewFlagSet("update", flag.ContinueOnError)
+	parseCLIFlags(pullCmd, args, printUpdateHelp)
 
 	if pullCmd.NArg() > 1 {
-		slog.Error("expected at most one directory argument; global flags must precede update")
+		fmt.Fprintln(os.Stderr, "expected at most one directory argument; global flags must precede update")
 		os.Exit(1)
 	}
 
