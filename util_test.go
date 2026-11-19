@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -58,5 +59,42 @@ func TestUpdateRunsHelmInChartDirectory(t *testing.T) {
 	t.Setenv("HELM_EXIT", "1")
 	if ok, err := update(context.Background(), defaultCommandTimeout, chart); ok || err == nil {
 		t.Fatalf("failed helm: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestTailBufferReusesStorage(t *testing.T) {
+	chunk := make([]byte, 8*1024)
+	var output tailBuffer
+	if allocs := testing.AllocsPerRun(20, func() {
+		for range 64 {
+			output.Write(chunk)
+		}
+	}); allocs != 0 {
+		t.Fatalf("capturing 512 KiB after filling the tail allocated %.0f times, want zero", allocs)
+	}
+}
+
+func TestTailBufferKeepsLastBytes(t *testing.T) {
+	var output tailBuffer
+	var sent []byte
+	for i, chunk := range [][]byte{
+		bytes.Repeat([]byte("a"), maxCommandOutput),
+		[]byte("bc"),
+		bytes.Repeat([]byte("d"), maxCommandOutput-1),
+		nil,
+		bytes.Repeat([]byte("ef"), maxCommandOutput/2+1),
+		[]byte("gh"),
+	} {
+		if n, err := output.Write(chunk); n != len(chunk) || err != nil {
+			t.Fatalf("write %d returned %d, %v; want %d, nil", i, n, err, len(chunk))
+		}
+		sent = append(sent, chunk...)
+		want := sent[max(0, len(sent)-maxCommandOutput):]
+		if got := output.String(); got != string(want) {
+			t.Errorf("after write %d, captured %d bytes that differ from the expected %d-byte tail", i, len(got), len(want))
+		}
+		if output.truncated != (len(sent) > maxCommandOutput) {
+			t.Errorf("after write %d, truncated = %v with %d bytes written", i, output.truncated, len(sent))
+		}
 	}
 }

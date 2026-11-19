@@ -8,7 +8,7 @@ k8s-tools -threads 4 --command-timeout 2m update ./charts
 k8s-tools --version
 ```
 
-The update command runs `helm dependency update` for each discovered chart. Helm must be available on PATH. Without a directory argument, the command searches `$HOME/repos`. Explicit directory arguments are used literally; the shell handles any desired variable expansion. Only one directory argument is accepted. Extra arguments (including flags placed after the directory) fail before discovery or Helm execution; global flags must precede `update`.
+The update command runs `helm dependency update` for each discovered chart. Helm must be available on PATH. Without a directory argument, the command searches `$HOME/repos`. If `HOME` is unset or empty, specify a directory. Explicit directory arguments are used literally; the shell handles any desired variable expansion. Only one directory argument is accepted. Extra arguments (including flags placed after the directory) fail before discovery or Helm execution; global flags must precede `update`.
 
 Relative Helm path overrides such as `HELM_REPOSITORY_CONFIG=./repositories.yaml` and `HELM_REGISTRY_CONFIG=./registry.json` resolve from the directory where you run `k8s-tools`. Helm runs each update in the corresponding chart directory.
 

@@ -162,3 +162,20 @@ func TestUpdateCLIDefaultDirectory(t *testing.T) {
 	}
 	assertAttempted(t, []string{filepath.Join(repos, filepath.Base(charts[0]))}, true)
 }
+
+func TestUpdateCLIMissingHome(t *testing.T) {
+	t.Setenv("HOME", "")
+
+	// Keep the pre-fix CLI from walking the real /repos directory.
+	code, stdout, stderr := runInputCLIStreams(t, "--threads=0", "update")
+	if code != 1 || stdout != "" || !strings.Contains(stderr, "HOME is unset or empty") {
+		t.Fatalf("exit = %d, stdout = %q, stderr = %q; want a missing HOME error", code, stdout, stderr)
+	}
+
+	root, charts := helmFixture(t, []bool{false})
+	code, output := runInputCLI(t, "update", root)
+	if code != 0 {
+		t.Fatalf("explicit directory: exit = %d, output = %s", code, output)
+	}
+	assertAttempted(t, charts, true)
+}
