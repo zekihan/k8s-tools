@@ -2,7 +2,11 @@ VERSION := $(shell cat VERSION)
 
 .PHONY: lint test build check release-check
 lint:
-	@test -z "$$(gofmt -l *.go)" || (gofmt -l *.go; exit 1)
+	@unformatted=$$(gofmt -l *.go) || exit $$?; \
+	if [ -n "$$unformatted" ]; then \
+		printf '%s\n' "$$unformatted"; \
+		exit 1; \
+	fi
 	go vet ./...
 
 test:
