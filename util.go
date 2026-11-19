@@ -21,7 +21,7 @@ func isHelmDir(dir string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("error checking Helm chart %s: %w", chartPath, err)
 	}
-	return !info.IsDir(), nil
+	return info.Mode().IsRegular(), nil
 }
 
 const defaultCommandTimeout = 5 * time.Minute
