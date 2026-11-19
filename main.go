@@ -28,7 +28,10 @@ func main() {
 	parseCLIFlags(globalFlags, os.Args[1:], printGlobalHelp)
 
 	if *showVersion {
-		fmt.Println(version)
+		if _, err := fmt.Fprintln(os.Stdout, version); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing version: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
