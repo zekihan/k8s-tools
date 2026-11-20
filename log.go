@@ -25,12 +25,15 @@ func initLogger(s string) {
 		slog.Warn("Invalid log level, using info", slog.String("level", s))
 	}
 
-	// Initialize the logger
-	logger := slog.New(
-		tint.NewTextHandler(os.Stdout, &tint.Options{
+	var handler slog.Handler
+	if info, err := os.Stdout.Stat(); err == nil && info.Mode()&os.ModeCharDevice != 0 {
+		handler = tint.NewTextHandler(os.Stdout, &tint.Options{
 			Level:      level,
 			TimeFormat: time.RFC3339,
-		}),
-	)
-	slog.SetDefault(logger)
+		})
+	} else {
+		// Preserve literal diagnostic text in pipes and files.
+		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	}
+	slog.SetDefault(slog.New(handler))
 }
