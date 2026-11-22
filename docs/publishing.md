@@ -1,7 +1,8 @@
 # Publishing
 
-Ordinary pull requests run native checks and builds. Container smoke checks and
-release cross-compilation run only before publication, on the captured source commit.
+Pull requests and the tagged publication workflow run `make check` and
+`goreleaser check` on the checked-out commit. The publication workflow then
+creates the release archives.
 
 Stable releases start from an existing signed `vX.Y.Z` tag whose commit belongs to
 main and whose version matches `VERSION`. Prepare the version locally, update any
